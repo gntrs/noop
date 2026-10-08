@@ -1751,7 +1751,7 @@ final class HealthKitBridge: ObservableObject {
             // session's mean and peak too.
             var samples = appleSamples
             var effort = profile.flatMap { Self.scoredEffort(appleSamples, profile: $0) }
-            if effort == nil, let profile {
+            if effort == nil {
                 let hrDeviceIds = Repository.workoutHrDeviceIds(
                     source: Self.appleWorkoutSource,
                     activeStrapId: repo.deviceId,
@@ -1759,9 +1759,25 @@ final class HealthKitBridge: ObservableObject {
                 let strapSamples = await repo.hrSamples(deviceIds: hrDeviceIds,
                                                         from: startTs, to: endTs,
                                                         limit: 20_000)
-                if let strapEffort = Self.scoredEffort(strapSamples, profile: profile) {
-                    effort = strapEffort
-                    samples = strapSamples
+                // Garmin Connect does not attach its heart rate to the workout, it writes it beside it.
+                // Its own beats inside the window answer when the strap was off (a swim) or dropped out.
+                let ownSamples = appleSamples.isEmpty
+                    ? await Self.fetchSourceHeartRate(for: workout, store: store) : []
+                let ordered: [[HRSample]]
+                switch WorkoutHRPick.choose(strap: strapSamples, other: ownSamples, start: startTs, end: endTs) {
+                case .strap: ordered = [strapSamples, ownSamples]
+                case .other: ordered = [ownSamples, strapSamples]
+                case .none:  ordered = []
+                }
+                if let profile {
+                    for candidate in ordered where !candidate.isEmpty {
+                        if let scored = Self.scoredEffort(candidate, profile: profile) {
+                            effort = scored; samples = candidate; break
+                        }
+                    }
+                }
+                if effort == nil, samples.isEmpty, let first = ordered.first(where: { !$0.isEmpty }) {
+                    samples = first
                 }
             }
             // Two gates, not one. A mean and a peak are readable from any beat the answering stream
@@ -1833,6 +1849,35 @@ final class HealthKitBridge: ObservableObject {
                     cont.resume(returning: nil); return
                 }
                 cont.resume(returning: Int(total.rounded()))
+            }
+            store.execute(query)
+        }
+    }
+
+    /// HR samples the workout's own app wrote inside the workout window. For apps that record heart rate
+    /// beside a workout rather than associated with it (Garmin Connect). Same source only, so another
+    /// device's beats in the same minutes are never mixed in.
+    private static func fetchSourceHeartRate(for workout: HKWorkout,
+                                             store: HKHealthStore) async -> [HRSample] {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .heartRate) else { return [] }
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: workout.startDate, end: workout.endDate, options: []),
+            HKQuery.predicateForObjects(from: [workout.sourceRevision.source]),
+            Self.notNoopAuthored,
+        ])
+        return await withCheckedContinuation { (cont: CheckedContinuation<[HRSample], Never>) in
+            let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+            let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, error in
+                guard error == nil, let samples = samples as? [HKQuantitySample] else {
+                    cont.resume(returning: []); return
+                }
+                let unit = HKUnit.count().unitDivided(by: .minute())
+                cont.resume(returning: samples.compactMap { sample in
+                    let bpm = sample.quantity.doubleValue(for: unit)
+                    guard bpm.isFinite, bpm >= 25, bpm <= 240 else { return nil }
+                    return HRSample(ts: Int(sample.startDate.timeIntervalSince1970), bpm: Int(bpm.rounded()))
+                })
             }
             store.execute(query)
         }
