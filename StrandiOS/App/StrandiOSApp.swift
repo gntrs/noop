@@ -155,6 +155,9 @@ struct StrandiOSApp: App {
             noopDeviceId: model.deviceId
         )
         _health = StateObject(wrappedValue: bridge)
+        #if DEBUG
+        if HealthSourceProbe.requested { Task { await HealthSourceProbe.run() } }
+        #endif
         // Register a separate, always-on-while-authorized refresh task for Apple Health write-back.
         // The operation is write-only and bounded to the bridge's recent window; fresh BLE offloads still
         // use the immediate hook below. BGTaskScheduler chooses the actual wake time.
