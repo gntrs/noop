@@ -30,6 +30,17 @@ enum LiquidRender {
         let shadowRect = rect.offsetBy(dx: 0, dy: max(1, diameter * 0.010))
         ctx.fill(Path(ellipseIn: shadowRect), with: .color(Color.black.opacity(0.14)))
 
+        if flat {
+            // Ember: a flat disc, a flat track, a flat arc. The length of the arc is the whole message.
+            ctx.fill(Path(ellipseIn: rect), with: .color(NoopVisualStyle.surface))
+            let track = fullArc(center: center, radius: radius)
+            ctx.stroke(track, with: .color(NoopVisualStyle.border), style: cap)
+            let level = max(0, min(1, sim.level))
+            if level > 0.004 {
+                ctx.stroke(partialArc(center: center, radius: radius, level: level), with: .color(tint), style: cap)
+            }
+            return
+        }
         // One continuous centre disc — soft 3D: light top face, gentle rim shade.
         // No separate inset circle / hard ring line.
         ctx.fill(Path(ellipseIn: rect), with: .linearGradient(
@@ -115,8 +126,11 @@ enum LiquidRender {
     }
 
     /// Harsh semantic gradient — tight stops so dark/light bands read clearly on the arc.
+    private static var flat: Bool { StrandPalette.chartStyle == .ember }
+
     private static func progressGradient(_ tint: Color) -> Gradient {
-        Gradient(stops: [
+        if flat { return Gradient(colors: [tint, tint]) }
+        return Gradient(stops: [
             .init(color: tint.liquidDarker(0.48), location: 0.00),
             .init(color: tint.liquidLighter(0.38), location: 0.34),
             .init(color: tint.liquidDarker(0.22), location: 0.58),
@@ -152,17 +166,18 @@ enum LiquidRender {
         p.closeSubpath()
         let fillGradient = usesCleanFill
             ? progressGradient(tint)
+            : flat ? Gradient(colors: [tint, tint])
             : Gradient(colors: [tint.opacity(0.84), tint.liquidDarker(0.28).opacity(0.86)])
         clip.fill(p, with: .linearGradient(
             fillGradient,
             startPoint: CGPoint(x: 0, y: usesCleanFill ? h / 2 : 0),
             endPoint: CGPoint(x: usesCleanFill ? w : 0, y: usesCleanFill ? h / 2 : h)
         ))
-        if showsHighlight {
+        if showsHighlight && !flat {
             clip.fill(Path(CGRect(x: 2, y: 1.2, width: max(0, edge - r * 0.6), height: 1)),
                       with: .color(.white.opacity(0.12)))
         }
-        if !usesCleanFill {
+        if !usesCleanFill && !flat {
             for i in 0..<min(8, sim.flecks.count) {
                 let f = sim.flecks[i]
                 let spark = pow(max(0, sin(f.ph + sim.a * 5 + now * f.sp)), 10)
