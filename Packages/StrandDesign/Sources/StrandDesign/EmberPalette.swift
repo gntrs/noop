@@ -17,15 +17,9 @@ enum Ember {
     static let grey6 = Color(light: "#17150F", dark: "#E8E6E1")
 
     // Recovery: dim to bright orange, so a low day reads quiet and a good day reads lit.
-    static let recoveryStops: [Gradient.Stop] = [
-        .init(color: grey2, location: 0.00), .init(color: orangeDeep, location: 0.45),
-        .init(color: orange, location: 0.78), .init(color: orangeLight, location: 1.00),
-    ]
-    // Strain: grey to near white, effort as brightness rather than a second hue.
-    static let strainStops: [Gradient.Stop] = [
-        .init(color: grey2, location: 0.00), .init(color: grey3, location: 0.33),
-        .init(color: grey4, location: 0.66), .init(color: grey6, location: 1.00),
-    ]
+    // Flat on purpose: a ring or bar is one colour, its length carries the value.
+    static let recoveryStops: [Gradient.Stop] = [.init(color: orange, location: 0), .init(color: orange, location: 1)]
+    static let strainStops: [Gradient.Stop] = [.init(color: grey6, location: 0), .init(color: grey6, location: 1)]
 
     static let sleepAwake = grey4
     static let sleepLight = grey2

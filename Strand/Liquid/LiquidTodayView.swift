@@ -208,6 +208,41 @@ struct LiquidTodayView: View {
     /// The DailyMetric shown for the selected day — read from the cache resolved in load() (was an
     /// O(days) `.last(where:)` scan referenced ~23× per body pass; now O(1)).
     private var displayDay: DailyMetric? { cachedDisplayDay }
+
+    /// "LAST WORKOUTS" to "Last workouts": section titles read as words, not spaced capitals.
+    static func sentenceCase(_ s: String) -> String {
+        guard s == s.uppercased(), let first = s.first else { return s }
+        return String(first) + s.dropFirst().lowercased()
+    }
+
+    /// The Ember home (three dials, activities, plain rows). Off by default; the full
+    /// Liquid Today stays the main screen.
+    @AppStorage("noop.emberHome") private var emberHome = false
+
+    private var emberHomeData: EmberHomeData {
+        let start = Calendar.current.startOfDay(for: selectedLogicalDay)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+        let title = selectedDayOffset == 0 ? String(localized: "Today") : selectedLogicalDay.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+        return EmberHomeData(
+            dayTitle: title,
+            sleepPct: restScore,
+            recoveryPct: chargeDisplay.pct,
+            recoveryIsPrior: selectedDayOffset == 0 && repo.today?.recovery == nil && chargeDisplay.pct != nil,
+            strain: effortStrain(displayDay).map { UnitFormatter.effortValue($0, scale: effortScale) },
+            strainMax: effortScale == .whoop ? 21 : 100,
+            strainDecimals: effortScale == .whoop ? 1 : 0,
+            effortScale: effortScale,
+            dayStart: start,
+            dayEnd: end,
+            workouts: workouts,
+            hrv: displayDay?.avgHrv ?? hrvDay?.avgHrv,
+            restingHr: (displayDay?.restingHr ?? restingHrDay?.restingHr).map(Double.init),
+            sleepMinutes: displayDay?.totalSleepMin,
+            respRate: displayDay?.respRateBpm ?? vitalsDay?.respRateBpm,
+            steps: importedStepsDay ?? stepsEst.map { Int($0) },
+            stepsSource: importedStepsDay != nil ? "health" : (stepsEst != nil ? "whoop" : nil)
+        )
+    }
     /// The prior-day vitals carry (see `cachedVitalsDay`), read O(1) from the cache. Non-nil only at
     /// offset 0 (today); a navigated past day carries nothing (its own row is the whole story).
     private var vitalsDay: DailyMetric? { cachedVitalsDay }
@@ -344,60 +379,66 @@ struct LiquidTodayView: View {
                 liquidRefreshIndicator   // grows in the revealed space; a vessel filling with the pull
 
                 VStack(alignment: .leading, spacing: 12) {
-                    scene
-                    // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
-                    // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,
-                    // RootView.swift likewise), so while this was unmounted a RAISED health alert had no
-                    // home-screen surface at all: it survived only as one push at the moment it fired
-                    // (IllnessNotifier.post) and as HeadsUpCard two taps deep in More → Health. Pinned ABOVE
-                    // the reorderable block — the same position classic TodayView uses on both platforms and
-                    // the same one Android pins it to (TodayScreen.kt) — so a warning cannot be reordered
-                    // below the fold. Renders nothing when model.healthAlert is nil.
-                    HealthAlertBanner()
-                    // #105: the live "workout in progress" card, dropped in the liquid Home rewrite. Restored
-                    // here as the SAME leaf the classic TodayView renders (and Android's WorkoutInProgressCard),
-                    // pinned above the reorderable block so an active manual workout is immediately visible
-                    // and opens the existing workout flow. Today also offers Start when no workout is active.
-                    ActiveWorkoutIndicatorSection(showStart: selectedDayOffset == 0)
-                    // #today-layout (parity with Android): every Today section — the Charge/Effort/Rest hero
-                    // and Start-session included — renders in the user's saved order. Reorder via the Arrange
-                    // sheet (the header's up/down button; native drag rows); the order persists under the
-                    // byte-identical "today.sectionOrder" key Android uses. A gated-off Start-session renders
-                    // nothing and keeps its slot in the saved order.
-                    ForEach(sectionOrder) { section in
-                        switch section {
-                        case .hero:
-                            heroCard
-                            if chargeLegacyRRGap { ChargeLegacyRRGapNote() }
-                        case .liveSession: if liveSessionsBeta { liveSessionStartRow }
-                        case .synthesis: synthesisSection
-                        case .keyMetrics: keyMetricsSection
-                        case .workouts: lastWorkoutsSection
-                        case .heartRate: heartRateSection
-                        case .recoveryVitals: recoveryVitalsSection
-                        case .yourCards: yourCardsSection
-                        case .menstrualCycle:
-                            if selectedDayOffset == 0 { MenstrualCycleHomeCard() }
-                        // #656: the persistent journal widget (last-7-days strip + tap-through). Now a
-                        // reorderable section like the others — the Arrange sheet moves it. Today only;
-                        // the card self-hides when the reminder toggle is off (an empty branch renders
-                        // nothing yet keeps its slot). Twin of Android TodayScreen's JOURNAL arm.
-                        case .journal: if selectedDayOffset == 0 { JournalReminderCard() }
-                        // #today-hosted-cards: cards the user pulled in from the Trends/Sleep tabs, in the
-                        // order they arranged. Empty (renders nothing) until they add one in Customise.
-                        // Today-only, matching Android's addedCards section gate + the classic TodayView.
-                        case .addedCards: if selectedDayOffset == 0 { hostedCardsSection }
+                    if emberHome {
+                        EmberHomeView(data: emberHomeData)
+                        HealthAlertBanner()
+                        ActiveWorkoutIndicatorSection(showStart: selectedDayOffset == 0)
+                    } else {
+                        scene
+                        // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
+                        // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,
+                        // RootView.swift likewise), so while this was unmounted a RAISED health alert had no
+                        // home-screen surface at all: it survived only as one push at the moment it fired
+                        // (IllnessNotifier.post) and as HeadsUpCard two taps deep in More → Health. Pinned ABOVE
+                        // the reorderable block — the same position classic TodayView uses on both platforms and
+                        // the same one Android pins it to (TodayScreen.kt) — so a warning cannot be reordered
+                        // below the fold. Renders nothing when model.healthAlert is nil.
+                        HealthAlertBanner()
+                        // #105: the live "workout in progress" card, dropped in the liquid Home rewrite. Restored
+                        // here as the SAME leaf the classic TodayView renders (and Android's WorkoutInProgressCard),
+                        // pinned above the reorderable block so an active manual workout is immediately visible
+                        // and opens the existing workout flow. Today also offers Start when no workout is active.
+                        ActiveWorkoutIndicatorSection(showStart: selectedDayOffset == 0)
+                        // #today-layout (parity with Android): every Today section — the Charge/Effort/Rest hero
+                        // and Start-session included — renders in the user's saved order. Reorder via the Arrange
+                        // sheet (the header's up/down button; native drag rows); the order persists under the
+                        // byte-identical "today.sectionOrder" key Android uses. A gated-off Start-session renders
+                        // nothing and keeps its slot in the saved order.
+                        ForEach(sectionOrder) { section in
+                            switch section {
+                            case .hero:
+                                heroCard
+                                if chargeLegacyRRGap { ChargeLegacyRRGapNote() }
+                            case .liveSession: if liveSessionsBeta { liveSessionStartRow }
+                            case .synthesis: synthesisSection
+                            case .keyMetrics: keyMetricsSection
+                            case .workouts: lastWorkoutsSection
+                            case .heartRate: heartRateSection
+                            case .recoveryVitals: recoveryVitalsSection
+                            case .yourCards: yourCardsSection
+                            case .menstrualCycle:
+                                if selectedDayOffset == 0 { MenstrualCycleHomeCard() }
+                            // #656: the persistent journal widget (last-7-days strip + tap-through). Now a
+                            // reorderable section like the others — the Arrange sheet moves it. Today only;
+                            // the card self-hides when the reminder toggle is off (an empty branch renders
+                            // nothing yet keeps its slot). Twin of Android TodayScreen's JOURNAL arm.
+                            case .journal: if selectedDayOffset == 0 { JournalReminderCard() }
+                            // #today-hosted-cards: cards the user pulled in from the Trends/Sleep tabs, in the
+                            // order they arranged. Empty (renders nothing) until they add one in Customise.
+                            // Today-only, matching Android's addedCards section gate + the classic TodayView.
+                            case .addedCards: if selectedDayOffset == 0 { hostedCardsSection }
+                            }
                         }
+                        // Opt-in "looks like a workout?" suggestion, dropped in the liquid Home rewrite. Its
+                        // Settings toggle (PuffinExperiment.autoDetectWorkoutsKey) had no visible effect on the
+                        // DEFAULT screen: the card's only mount was classic TodayView, so a user could switch
+                        // auto-detect on and never be shown a single suggestion. Same position classic uses
+                        // (after the cards block, before Data Sources) and the same leaf Android renders.
+                        // Self-gates on the toggle AND on the detector finding an unsaved, un-dismissed window,
+                        // so it renders nothing by default.
+                        AutoWorkoutCard()
+                        dataSourcesSection
                     }
-                    // Opt-in "looks like a workout?" suggestion, dropped in the liquid Home rewrite. Its
-                    // Settings toggle (PuffinExperiment.autoDetectWorkoutsKey) had no visible effect on the
-                    // DEFAULT screen: the card's only mount was classic TodayView, so a user could switch
-                    // auto-detect on and never be shown a single suggestion. Same position classic uses
-                    // (after the cards block, before Data Sources) and the same leaf Android renders.
-                    // Self-gates on the toggle AND on the detector finding an unsaved, un-dismissed window,
-                    // so it renders nothing by default.
-                    AutoWorkoutCard()
-                    dataSourcesSection
                     Color.clear.frame(height: 90) // floating tab-bar clearance
                 }
                 .padding(.horizontal, NoopMetrics.screenHPadding)
@@ -435,7 +476,7 @@ struct LiquidTodayView: View {
                 }
                 // Day-cycle scene (#698): the sky only paints when the toggle is ON AND no custom image is
                 // active; off = the plain surfaceBase canvas above (parity with Android + classic TodayView).
-                else if showDayCycleBackground {
+                else if showDayCycleBackground && !emberHome {
                     // Reduce-motion (and low-power) users get the same sky posed still — no twinkle/breath.
                     // Also static until the first data load settles, so launch isn't fighting a live sky too.
                     // "Sky behind cards" (opt-in): fill the whole backdrop with a softer settle so the sky
@@ -654,9 +695,7 @@ struct LiquidTodayView: View {
             // #today-layout: the hero + Start-session row moved OUT of the scene into the reorderable
             // section block below. The wordmark's bottom pad (10) + the section VStack's 12 spacing keeps
             // the default hero-under-wordmark gap at the original 22.
-            LiquidWordmark()
-                .padding(.top, 30)
-                .padding(.bottom, 10)
+            Color.clear.frame(height: 12)
         }
     }
 
@@ -701,7 +740,7 @@ struct LiquidTodayView: View {
             // the state pill) rather than an empty vessel, matching the classic Today, the widget/watch/Live
             // Activity (`Repository.widgetAnchor`) and Android. Effort deliberately does NOT carry — it is
             // today's own accumulation, so yesterday's number would be a false statement, not a stale one.
-            HeroScoreCell(label: String(localized: "Charge"), score: chargeDisplay.pct,
+            HeroScoreCell(label: String(localized: "Recovery"), score: chargeDisplay.pct,
                           tint: chargeDisplay.pct.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.chargeColor,
                           animated: dataLoaded, onGuide: { guideSection = .charge },
                           detailRoute: .metric(HeroRingMetric.charge))
@@ -709,14 +748,14 @@ struct LiquidTodayView: View {
             // Show the value on the chosen scale (0–100 or WHOOP 0–21) with the matching vessel max, and
             // one decimal on the compressed 0–21 axis to match the app-wide `effortDisplay` convention
             // (12.6, not a rounded "13"); the 0–100 hero stays a whole number as before.
-            HeroScoreCell(label: String(localized: "Effort"),
+            HeroScoreCell(label: String(localized: "Strain"),
                           score: effortStrain(displayDay).map { UnitFormatter.effortValue($0, scale: effortScale) },
                           tint: StrandPalette.effortColor, animated: dataLoaded,
                           onGuide: { guideSection = .effort },
                           maxValue: effortScale == .whoop ? 21 : 100,
                           decimals: effortScale == .whoop ? 1 : 0,
                           detailRoute: .metric(HeroRingMetric.effort))
-            HeroScoreCell(label: String(localized: "Rest"), score: restScore, tint: StrandPalette.restColor,
+            HeroScoreCell(label: String(localized: "Sleep"), score: restScore, tint: StrandPalette.restColor,
                           animated: dataLoaded, onGuide: { guideSection = .rest },
                           detailRoute: .metric(HeroRingMetric.rest))
                 .overlay(alignment: .top) {
@@ -768,14 +807,14 @@ struct LiquidTodayView: View {
     private var yourCardsSection: some View {
         VStack(spacing: 8) {
             HStack {
-                Text("YOUR CARDS").font(StrandFont.overline).tracking(1.6)
+                Text("Your cards").font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(StrandPalette.textTertiary)
                 Spacer()
                 Button { customizationDestination = .yourCards } label: {
                     // #492 item 4 parity: unify the Your Cards / Key Metrics edit affordance to "EDIT" across
                     // platforms (Android #563). Reuse the localized "Edit" key, uppercased at display, so this
                     // stays translated (BEARBEITEN / MODIFIER / …) without a new literal.
-                    Text(String(localized: "Edit").uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
+                    Text(String(localized: "Edit")).font(.system(size: 15, weight: .medium))
                         .foregroundStyle(StrandPalette.accent)
                 }
                 .buttonStyle(.plain)
@@ -1134,7 +1173,7 @@ struct LiquidTodayView: View {
                 LiquidVessel(value: frac, tint: tint, animated: false, tapPassesThrough: true)
                     .frame(width: 30, height: 30)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title.uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
+                    Text(title).font(.system(size: 13, weight: .medium))
                         .foregroundStyle(StrandPalette.textPrimary)
                     Text(sub).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                 }
@@ -1164,26 +1203,9 @@ struct LiquidTodayView: View {
                 Text(greeting).font(StrandFont.rounded(19)).foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1).minimumScaleFactor(0.6)   // yield to the pills rather than push them to wrap
                 Spacer(minLength: 8)
-                HStack(spacing: 8) {
-                    if let word = readinessWord {
-                        Text(word)
-                            .font(StrandFont.caption.weight(.bold))
-                            .foregroundStyle(StrandPalette.chargeColor)
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(StrandPalette.chargeColor.opacity(0.14))
-                                .overlay(Capsule().strokeBorder(StrandPalette.chargeColor.opacity(0.3), lineWidth: 1)))
-                    }
-                    HStack(spacing: 5) {
-                        Circle().fill(StrandPalette.chargeColor).frame(width: 6, height: 6)
-                        Text(chargeDisplay.stateLabel)
-                            .font(StrandFont.caption.weight(.bold))
-                            .foregroundStyle(StrandPalette.chargeColor)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Capsule().strokeBorder(StrandPalette.chargeColor.opacity(0.3), lineWidth: 1))
-                }
+                Text([readinessWord, chargeDisplay.stateLabel].compactMap { $0 }.joined(separator: ", "))
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(StrandPalette.textSecondary)
                 .fixedSize(horizontal: true, vertical: false)   // pills keep their natural width — no "Calibrating" wrap
             }
             .padding(.horizontal, 2)
@@ -1193,7 +1215,7 @@ struct LiquidTodayView: View {
                 card {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("SYNTHESIS").font(StrandFont.overline).tracking(1.6)
+                            Text("Synthesis").font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(StrandPalette.textSecondary)
                             Spacer()
                             Text(synthesisExpanded
@@ -1256,7 +1278,7 @@ struct LiquidTodayView: View {
         return card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("RECOVERY VITALS").font(StrandFont.overline).tracking(1.6)
+                    Text("Recovery vitals").font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(StrandPalette.textSecondary)
                     Spacer()
                     if let line = vitalsProvenanceLine {
@@ -1351,9 +1373,8 @@ struct LiquidTodayView: View {
                 sectionHead("KEY METRICS", trailing: keyMetricsDetailed ? trendWindowLabel : nil)
                 // #430 parity: the SAME editor the classic grid uses — selection + order + Detailed tiles.
                 Button { customizationDestination = .keyMetrics } label: {
-                    Text(String(localized: "Edit").uppercased())
-                        .font(StrandFont.overlineScaled(11))
-                        .tracking(1.0)
+                    Text(String(localized: "Edit"))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(StrandPalette.accent)
                 }
                 .buttonStyle(.plain)
@@ -1476,9 +1497,8 @@ struct LiquidTodayView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(tint.opacity(0.72))
                     .frame(width: 14)
-                Text(label.uppercased())
-                    .font(StrandFont.overlineScaled(10))
-                    .tracking(1.0)
+                Text(label)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(StrandPalette.textTertiary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
@@ -1607,7 +1627,7 @@ struct LiquidTodayView: View {
     /// Matches the Android twin, whose `SectionHeader` already takes `trailing: String? = null`.
     private func sectionHead(_ title: String, trailing: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(LocalizedStringKey(title)).font(StrandFont.overline).tracking(1.6).foregroundStyle(StrandPalette.textTertiary)
+            Text(LocalizedStringKey(Self.sentenceCase(title))).font(.system(size: 15, weight: .semibold)).foregroundStyle(StrandPalette.textTertiary)
             Spacer()
             if let trailing {
                 Text(LocalizedStringKey(trailing)).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
@@ -2290,7 +2310,7 @@ private struct HeroScoreCell: View {
                 HStack(spacing: 3) {
                     // #74: one line, shrink-to-fit rather than wrap under large Dynamic Type (mirrors the
                     // score number above) so CHARGE/EFFORT/REST never grow the hero card to two lines.
-                    Text(label.uppercased()).font(StrandFont.overline).tracking(1.6)
+                    Text(label).font(.system(size: 13, weight: .medium))
                         .lineLimit(1).minimumScaleFactor(0.7)
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).opacity(0.6)
                 }
@@ -2506,9 +2526,8 @@ private struct LiquidLiveHR: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: NoopMetrics.space2) {
                 HStack(spacing: NoopMetrics.space1) {
-                    Text("BEATS PER MINUTE")
-                        .font(StrandFont.overline)
-                        .tracking(1.6)
+                    Text("Heart rate")
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(StrandPalette.textSecondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)

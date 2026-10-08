@@ -30,7 +30,7 @@ struct WorkoutStartControl: View {
             } else {
                 NoopButton(model.activeWorkout == nil ? "Start workout" : "View active workout",
                            systemImage: model.activeWorkout == nil ? "figure.run" : "timer",
-                           kind: .primary,
+                           kind: .secondary,
                            fullWidth: true) {
                     // No active session → pick a named sport first (#519), then the sheet's onStart begins it
                     // and opens the in-exercise view. Already active → jump straight back into the live view.
