@@ -108,16 +108,14 @@ struct ActiveWorkoutIndicatorCard: View {
                         .fill(StrandPalette.metricRose)
                         .frame(width: NoopMetrics.space2, height: NoopMetrics.space2)
                         .accessibilityHidden(true)
-                    Text("WORKOUT IN PROGRESS")
+                    Text("Workout in progress")
                         .font(StrandFont.overline)
-                        .tracking(StrandFont.overlineTracking)
                         .foregroundStyle(StrandPalette.metricRose)
                     // A frozen clock alone is ambiguous with a STALLED one, so say which it is. Reuses the
                     // "Paused" string #1533 already localized rather than minting new copy for a tag.
                     if model.isPaused {
                         Text("Paused")
                             .font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
                     Spacer(minLength: NoopMetrics.space2)
@@ -1992,7 +1990,7 @@ struct TodayView: View {
                             .foregroundStyle(StrandPalette.textSecondary)
                     }
                     Spacer(minLength: NoopMetrics.space2)
-                    Text("BETA")
+                    Text("Beta")
                         .strandOverline()
                     Image(systemName: "chevron.right")
                         .font(StrandFont.caption.weight(.semibold))
@@ -2413,7 +2411,6 @@ struct TodayView: View {
         } label: {
             Text(word)
                 .font(StrandFont.overline)
-                .tracking(StrandFont.overlineTracking)
                 .foregroundStyle(readinessColor(readiness.level))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -2447,7 +2444,6 @@ struct TodayView: View {
                     } label: {
                         Label(String(localized: "Edit").uppercased(), systemImage: "slider.horizontal.3")   // #492/#563: unified "EDIT"
                             .font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(StrandPalette.accent)
@@ -2830,9 +2826,8 @@ struct TodayView: View {
                 .frame(width: 34, height: 34)
                 .overlay(Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title.uppercased())
+                Text(title)
                     .font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1)
                 Text(subtitle)
@@ -3046,7 +3041,6 @@ struct TodayView: View {
             // translated word in the current locale rather than baking an English "HRV"/"RESTING HR" in.
             Text(label)
                 .font(StrandFont.footnote.weight(.semibold))
-                .textCase(.uppercase)
                 .tracking(0.6)
                 .foregroundStyle(StrandPalette.textSecondary)
             Spacer(minLength: 8)
@@ -3233,7 +3227,7 @@ struct TodayView: View {
     }
 
     /// The localized natural-case display word for a score domain (Charge / Effort / Rest / Stress). The
-    /// hero label uppercases this via `.textCase(.uppercase)`, so the catalog only needs the title-case key.
+    /// hero label uppercases this via ``, so the catalog only needs the title-case key.
     /// `domain.rawValue` stays the stable styling/lookup id; this is purely the user-facing word. Mirror in
     /// Kotlin (the Android hero already reads its label from a localized resource, not the enum name).
     private static func domainLabel(_ domain: DomainTheme) -> LocalizedStringKey {
@@ -3334,12 +3328,10 @@ struct TodayView: View {
                         .opacity(0)
                         .accessibilityHidden(true)
                     // The CHARGE/EFFORT/REST hero label is localized: the catalog key is the natural-case
-                    // domain word (Charge/Effort/Rest) and `.textCase(.uppercase)` does the uppercasing in
+                    // domain word (Charge/Effort/Rest) and `` does the uppercasing in
                     // the current locale, so a de/es/ru build shows the translated word, not the English id.
                     Text(Self.domainLabel(domain))
-                        .textCase(.uppercase)
                         .font(StrandFont.overline)
-                        .tracking(StrandFont.overlineTracking)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                         .opacity(0.6)

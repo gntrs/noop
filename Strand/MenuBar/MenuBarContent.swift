@@ -156,9 +156,8 @@ public struct MenuBarContent: View {
                 Text("NOOP")
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("ALL YOUR DATA · NONE OF THE CLOUD")
+                Text("All your data · none of the cloud")
                     .font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
             }
             Spacer(minLength: 8)
@@ -177,9 +176,8 @@ public struct MenuBarContent: View {
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 2) {
-                Text("HEART RATE")
+                Text("Heart rate")
                     .font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(displayHR.map(String.init) ?? "—")
@@ -204,9 +202,8 @@ public struct MenuBarContent: View {
                 Text("—")
                     .font(StrandFont.number(28))
                     .foregroundStyle(StrandPalette.textTertiary)
-                Text("NO DATA")
+                Text("No data")
                     .font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
                     .foregroundStyle(StrandPalette.textTertiary)
             }
         }
@@ -241,7 +238,6 @@ public struct MenuBarContent: View {
         VStack(spacing: 3) {
             Text(label)
                 .font(StrandFont.overline)
-                .tracking(StrandFont.overlineTracking)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)

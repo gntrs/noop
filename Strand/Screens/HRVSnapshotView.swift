@@ -296,7 +296,7 @@ struct HRVSnapshotView: View {
     private func resultCard(_ result: HRVAnalyzer.HRVResult) -> some View {
         StrandCard(padding: 18, tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("YOUR READING").strandOverline()
+                Text("Your reading").strandOverline()
 
                 if result.rmssd == nil {
                     HStack(spacing: 10) {
@@ -322,7 +322,7 @@ struct HRVSnapshotView: View {
 
     private func metricTile(_ label: String, _ value: String, _ unit: String, _ accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(label.uppercased()).strandOverline()
+            Text(label).strandOverline()
             Spacer(minLength: 6)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(value)

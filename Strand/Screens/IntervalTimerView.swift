@@ -241,7 +241,7 @@ struct IntervalTimerView: View {
     /// Frosted round chip — "ROUND n / N".
     private var roundChip: some View {
         HStack(spacing: 6) {
-            Text("ROUND").strandOverline()
+            Text("Round").strandOverline()
             Text("\(min(currentRound, rounds))")
                 .font(StrandFont.number(18))
                 .foregroundStyle(StrandPalette.textPrimary)

@@ -114,7 +114,7 @@ struct LiftSessionEditSheet: View {
                         .frame(width: LiftSessionView.setColumnWidth, alignment: .center)
                     Text(weightHeading).strandOverline().frame(maxWidth: .infinity, alignment: .leading)
                     Text("Reps").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
-                    Text("RPE").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Rpe").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)

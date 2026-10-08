@@ -127,8 +127,7 @@ struct HowNoopWorksView: View {
     private var header: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("THE BASICS").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
+                Text("The basics").font(StrandFont.overline)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("How NOOP works").font(StrandFont.rounded(26, weight: .bold))
                     .foregroundStyle(StrandPalette.textPrimary)
@@ -166,8 +165,7 @@ struct HowNoopWorksView: View {
     private var introCard: some View {
         NoopCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("THE ONE RULE").font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
+                Text("The one rule").font(StrandFont.overline)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Text("NOOP never shows you a number it had to make up. If a score isn't ready, it tells you why and what to do next. Everything here runs on your device, from your strap.")
                     .font(StrandFont.subhead)
@@ -193,8 +191,6 @@ struct HowNoopWorksView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(section.overline)
                             .font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
-                            .textCase(.uppercase)
                             .foregroundStyle(section.tint)
                         Text(section.title)
                             .font(StrandFont.headline)
@@ -278,9 +274,8 @@ struct HowNoopWorksView: View {
                         .frame(width: 24)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("METHOD")
+                        Text("Method")
                             .font(StrandFont.overline)
-                            .tracking(StrandFont.overlineTracking)
                             .foregroundStyle(DomainTheme.charge.color)
                         Text("How your scores are computed")
                             .font(StrandFont.headline)
@@ -312,7 +307,6 @@ struct HowNoopWorksView: View {
                     .foregroundStyle(StrandPalette.textPrimary)
                 Text(m.family)
                     .font(StrandFont.overline)
-                    .tracking(0.4)
                     .foregroundStyle(m.tint)
                 Spacer(minLength: 0)
             }

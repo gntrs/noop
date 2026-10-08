@@ -782,8 +782,8 @@ struct WorkoutsView: View {
         let displayValue = UnitFormatter.effortValue(avgStrain, scale: effortScale)
         let fraction = max(0, min(1, displayValue / scaleMax))
         VStack(spacing: 18) {
-            Text("TYPICAL EFFORT")
-                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+            Text("Typical effort")
+                .font(StrandFont.overline)
                 .foregroundStyle(StrandPalette.effortColor)
             if hasData {
                 ZStack {
@@ -856,8 +856,8 @@ struct WorkoutsView: View {
 
     private func heroStat(_ title: String, _ value: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased())
-                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+            Text(title)
+                .font(StrandFont.overline)
                 .foregroundStyle(StrandPalette.textSecondary)
             Text(value).font(StrandFont.number(20))
                 .foregroundStyle(tint).lineLimit(1).minimumScaleFactor(0.6)
@@ -870,8 +870,8 @@ struct WorkoutsView: View {
     private func heroCountStat(_ title: String, value: Double,
                                format: @escaping (Double) -> String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased())
-                .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+            Text(title)
+                .font(StrandFont.overline)
                 .foregroundStyle(StrandPalette.textSecondary)
             CountUpText(value: value, format: format, font: StrandFont.number(20), color: tint)
                 .lineLimit(1).minimumScaleFactor(0.6)

@@ -67,19 +67,22 @@ public enum StrandFont {
     /// Also the face for compact status copy in constrained chrome (the Today header's sync capsule),
     /// used there WITHOUT the tracking — that is sentence case, not an overline, and the letter-spacing
     /// is what makes an overline read as one.
-    public static let overline = Font.system(.caption2, design: .default, weight: .semibold)
+    public static let overline = Font.system(.footnote, design: .default, weight: .medium)
 
     /// `overline` at a custom point size — same Helvetica face, weight and Dynamic-Type scaling
     /// (relativeTo `.caption2`), just smaller. Passing 11 returns exactly `.overline`. Lets a caller
     /// shrink an ALL-CAPS label to fit a small container without losing accessibility text-scaling.
-    public static func overlineScaled(_ size: CGFloat) -> Font {
+    public static func overlineScaled(_ requested: CGFloat) -> Font {
+        // Labels are sentence case now, so they read at two points larger than the old capitals,
+        // never under 12.
+        let size = max(12, requested + 2)
         #if canImport(UIKit)
-        let base = UIFont.systemFont(ofSize: size, weight: .semibold)
+        let base = UIFont.systemFont(ofSize: size, weight: .medium)
         let descriptor = base.fontDescriptor.withDesign(.default) ?? base.fontDescriptor
         let rounded = UIFont(descriptor: descriptor, size: size)
         return Font(UIFontMetrics(forTextStyle: .caption2).scaledFont(for: rounded))
         #elseif canImport(AppKit)
-        let base = NSFont.systemFont(ofSize: size, weight: .semibold)
+        let base = NSFont.systemFont(ofSize: size, weight: .medium)
         guard let descriptor = base.fontDescriptor.withDesign(.default),
               let rounded = NSFont(descriptor: descriptor, size: size) else {
             return Font(base)
@@ -123,8 +126,6 @@ public extension Text {
     /// Style as an overline label: ALL-CAPS, bold, +1.4 tracking, tertiary text.
     func strandOverline() -> some View {
         self.font(StrandFont.overline)
-            .tracking(StrandFont.overlineTracking)
-            .textCase(.uppercase)
             .foregroundStyle(StrandPalette.textSecondary)
     }
 }

@@ -538,8 +538,7 @@ private struct Section2<Content: View>: View {
                     HStack(spacing: 8) {
                         Text("Automation").strandOverline()
                         if active {
-                            Text("ON").font(StrandFont.overline)
-                                .tracking(StrandFont.overlineTracking)
+                            Text("On").font(StrandFont.overline)
                                 .foregroundStyle(StrandPalette.accent)
                         }
                     }

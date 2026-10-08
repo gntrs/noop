@@ -289,7 +289,7 @@ struct LiftSessionView: View {
                 .frame(width: Self.setColumnWidth, alignment: .center)
             Text(weightHeading).strandOverline().frame(maxWidth: .infinity, alignment: .leading)
             Text("Reps").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
-            Text("RPE").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
+            Text("Rpe").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
             Color.clear.frame(width: Self.tickColumnWidth)
         }
         .lineLimit(1)

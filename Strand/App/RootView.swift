@@ -256,7 +256,6 @@ struct RootView: View {
                                 Text(group.title)
                                     .font(StrandFont.rounded(11, weight: .semibold))
                                     .foregroundStyle(StrandPalette.textTertiary)
-                                    .textCase(.uppercase)
                             }
                         }
                     }

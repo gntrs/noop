@@ -418,7 +418,7 @@ struct RhythmView: View {
         StrandCard(padding: 18, tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("LAST NIGHT").strandOverline()
+                    Text("Last night").strandOverline()
                     Spacer()
                     ScoreStatePill(confidenceState, text: confidenceText)
                 }
@@ -454,8 +454,6 @@ struct RhythmView: View {
             HStack {
                 Text(label)
                     .font(StrandFont.overline)
-                    .tracking(StrandFont.overlineTracking)
-                    .textCase(.uppercase)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Spacer()
                 Text(percent(frac))
@@ -472,7 +470,7 @@ struct RhythmView: View {
     private var plotCard: some View {
         StrandCard(padding: 18, tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("BEAT-TO-BEAT SCATTER").strandOverline()
+                Text("Beat-to-beat scatter").strandOverline()
                 ZStack {
                     ScenicHeroBackground(domain: .rest, starCount: 36)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
