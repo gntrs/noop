@@ -11,6 +11,7 @@ import SwiftUI
 public enum ChartStyle: String, CaseIterable, Identifiable, Sendable {
     case titanium   // brand: gold recovery, amber strain, blue rest
     case classic    // throwback: red→green recovery, cool→hot zones, green→red stress
+    case ember      // warm greys for data, one orange for what matters, red only for warnings
 
     public var id: String { rawValue }
     public static let storageKey = "chart.style"
@@ -19,10 +20,11 @@ public enum ChartStyle: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .titanium: return String(localized: "Default", bundle: .module)
         case .classic:  return String(localized: "Classic", bundle: .module)
+        case .ember:    return String(localized: "Ember", bundle: .module)
         }
     }
 
-    public static func resolve(_ raw: String) -> ChartStyle { ChartStyle(rawValue: raw) ?? .titanium }
+    public static func resolve(_ raw: String) -> ChartStyle { ChartStyle(rawValue: raw) ?? .ember }
 }
 
 /// The Sleep tab's stage-CHART shape (distinct from `ChartStyle`, which is colours): the long-standing
@@ -91,6 +93,7 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
     case mint        // the brand default (#1068 NoopVisualStyle.mint world)
     case whoopBlue   // the classic WHOOP link blue
     case custom      // a user-picked colour (hex stored separately)
+    case ember       // the one orange of the ember look
 
     public var id: String { rawValue }
     public static let storageKey = "accent.color"
@@ -104,10 +107,11 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
         case .mint:      return String(localized: "Mint", bundle: .module)
         case .whoopBlue: return String(localized: "WHOOP Blue", bundle: .module)
         case .custom:    return String(localized: "Custom", bundle: .module)
+        case .ember:     return String(localized: "Ember", bundle: .module)
         }
     }
 
-    public static func resolve(_ raw: String) -> AccentColor { AccentColor(rawValue: raw) ?? .mint }
+    public static func resolve(_ raw: String) -> AccentColor { AccentColor(rawValue: raw) ?? .ember }
 
     /// The chrome accent. `.custom` resolves the stored hex at read time.
     public var accent: Color {
@@ -115,6 +119,7 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
         case .mint:      return NoopVisualStyle.mint
         case .whoopBlue: return Color(light: "#234F9E", dark: "#60A0E0")
         case .custom:    return Color(hex: StrandPalette.customAccentHex)
+        case .ember:     return Ember.orange
         }
     }
 
@@ -124,6 +129,7 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
         case .mint:      return NoopVisualStyle.mintGlow
         case .whoopBlue: return Color(light: "#3A6FC0", dark: "#8FBEEC")
         case .custom:    return AccentColor.lighten(StrandPalette.customAccentHex)
+        case .ember:     return Ember.orangeLight
         }
     }
 
@@ -134,6 +140,7 @@ public enum AccentColor: String, CaseIterable, Identifiable, Sendable {
         case .mint:      return NoopVisualStyle.mintDeep.opacity(0.18)
         case .whoopBlue: return Color(light: "#234F9E", dark: "#60A0E0").opacity(0.18)
         case .custom:    return Color(hex: StrandPalette.customAccentHex).opacity(0.18)
+        case .ember:     return Ember.orange.opacity(0.18)
         }
     }
 
