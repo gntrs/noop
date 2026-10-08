@@ -547,7 +547,7 @@ final class HealthKitBridge: ObservableObject {
         note(stepsReadOk, "stepCount")
         // Garmin's step count wins wherever it has one: Health merges every source by its own priority,
         // and the watch counts steps better than the phone in a pocket. Days Garmin missed keep the merge.
-        let garminStepSources = await Self.garminSources(for: .stepCount, in: self.store)
+        let garminStepSources = await Self.garminSources(for: HKQuantityType(.stepCount), in: self.store)
         if !garminStepSources.isEmpty {
             _ = await collect(.stepCount, unit: .count(), start: start, end: end, op: .cumulativeSum,
                               sources: garminStepSources) { day, v in
@@ -613,6 +613,7 @@ final class HealthKitBridge: ObservableObject {
             a.asleepMin = asleepMin; a.deepMin = deepMin; a.remMin = remMin; a.coreMin = coreMin
             byDay[day] = a
         }
+        await syncGarminNights(start: start, end: end, into: store)
 
         // #2561 follow-up: hold the whole write back if ANY aggregate read failed. Every upsert below
         // assigns `column = excluded.column`, so writing now would replace each failed metric's stored
@@ -1435,9 +1436,8 @@ final class HealthKitBridge: ObservableObject {
 
     /// Every Health source that is Garmin Connect (bundle ids start with com.garmin) and has written this
     /// type. Empty when Garmin Connect is not installed or never shared the type.
-    static func garminSources(for id: HKQuantityTypeIdentifier, in store: HKHealthStore) async -> Set<HKSource> {
-        guard let type = HKQuantityType.quantityType(forIdentifier: id) else { return [] }
-        return await withCheckedContinuation { cont in
+    static func garminSources(for type: HKSampleType, in store: HKHealthStore) async -> Set<HKSource> {
+        await withCheckedContinuation { cont in
             let q = HKSourceQuery(sampleType: type, samplePredicate: nil) { _, sources, _ in
                 cont.resume(returning: (sources ?? []).filter { GarminSource.isGarmin(bundleId: $0.bundleIdentifier) })
             }
@@ -1560,6 +1560,44 @@ final class HealthKitBridge: ObservableObject {
             }
             store.execute(q)
         }
+    }
+
+    /// Garmin Connect's nights, stored as real sessions under the `garmin` device so the Sleep tab can
+    /// show a night the strap missed. Storing never overrides the strap: display picks per night
+    /// (`SleepGapFill`), and the WHOOP keeps every night it has.
+    private func syncGarminNights(start: Date, end: Date, into db: WhoopStore) async {
+        guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return }
+        let sources = await Self.garminSources(for: type, in: self.store)
+        guard !sources.isEmpty else { return }
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: start, end: end, options: []),
+            HKQuery.predicateForObjects(from: sources),
+        ])
+        let samples: [GarminSleepNights.Sample] = await withCheckedContinuation { cont in
+            let q = HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit,
+                                  sortDescriptors: nil) { _, results, _ in
+                let mapped: [GarminSleepNights.Sample] = (results ?? []).compactMap { r in
+                    guard let c = r as? HKCategorySample else { return nil }
+                    let kind: GarminSleepNights.Kind
+                    switch HKCategoryValueSleepAnalysis(rawValue: c.value) {
+                    case .inBed: kind = .inBed
+                    case .asleepCore: kind = .core
+                    case .asleepDeep: kind = .deep
+                    case .asleepREM: kind = .rem
+                    case .awake: kind = .awake
+                    case .asleepUnspecified: kind = .asleep
+                    default: return nil
+                    }
+                    return GarminSleepNights.Sample(start: Int(c.startDate.timeIntervalSince1970),
+                                                    end: Int(c.endDate.timeIntervalSince1970), kind: kind)
+                }
+                cont.resume(returning: mapped)
+            }
+            self.store.execute(q)
+        }
+        let nights = GarminSleepNights.build(samples)
+        guard !nights.isEmpty else { return }
+        _ = try? await db.upsertSleepSessions(nights, deviceId: GarminSleepNights.deviceId)
     }
 
     private func collectSleep(start: Date, end: Date,

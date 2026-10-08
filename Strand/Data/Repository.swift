@@ -960,6 +960,7 @@ final class Repository: ObservableObject {
         let activityFile = (try? await store.dailyMetrics(deviceId: Self.activityFileSource, from: fromDay, to: toDay)) ?? []
         let impSleep = await unionSleepSessions(store: store, from: lo, to: hi)
         let compSleep = await unionComputedSleepSessions(store: store, from: lo, to: hi)
+        let garminSleep = (try? await store.sleepSessions(deviceId: SleepGapFill.garminDeviceId, from: lo, to: hi, limit: 4000)) ?? []
 
         // #2525: the Charge baselines' inputs, read on the main actor before detaching: today's local day
         // (the same local-calendar key the engine anchors its fold on) and the two recalibration epochs the
@@ -1000,7 +1001,7 @@ final class Repository: ObservableObject {
                 chargeBaselines: ChargeBaselines.resolve(imported: imported, own: computed,
                                                          anchorDay: chargeAnchorDay,
                                                          hrvEpoch: hrvEpoch, recoveryEpoch: recoveryEpoch),
-                sleeps: Self.mergeSleep(imported: impSleep, computed: compSleep),
+                sleeps: Self.fillGarminSleep(Self.mergeSleep(imported: impSleep, computed: compSleep), garminSleep),
                 vitalRows: Self.sourceRows(imported: imported, computed: computed, apple: apple),
                 freshness: Self.computeFreshness(imported: imported, computed: computed, apple: apple,
                                                  importedSleeps: impSleep, computedSleeps: compSleep))
@@ -1165,6 +1166,15 @@ final class Repository: ObservableObject {
     /// in whatever the live device zone is and so disagreed with the engine's cached-offset attribution
     /// across a midnight boundary for non-UTC users (the Swift half of #406; mirrors the Android #304 fix
     /// pinned by MergeSleepLocalDayTest).
+    /// Garmin nights fill only where the WHOOP has no night, keyed by the same local end-day as the merge.
+    nonisolated static func fillGarminSleep(_ primary: [CachedSleepSession], _ garmin: [CachedSleepSession]) -> [CachedSleepSession] {
+        guard !garmin.isEmpty else { return primary }
+        return SleepGapFill.fill(primary: primary, filler: garmin) { s in
+            let offsetSec = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(s.endTs)))
+            return AnalyticsEngine.dayString(s.endTs, offsetSec: offsetSec)
+        }
+    }
+
     nonisolated private static func mergeSleep(imported: [CachedSleepSession], computed: [CachedSleepSession]) -> [CachedSleepSession] {
         func endDay(_ s: CachedSleepSession) -> String {
             let offsetSec = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(s.endTs)))
@@ -1422,7 +1432,8 @@ final class Repository: ObservableObject {
         var importedDays = Set<Date>()
         for s in imported { importedDays.insert(endDay(s)) }
         let computedKept = computed.filter { !importedDays.contains(endDay($0)) }
-        return (imported + computedKept).sorted { $0.effectiveStartTs < $1.effectiveStartTs }
+        let garmin = (try? await store.sleepSessions(deviceId: SleepGapFill.garminDeviceId, from: lo, to: hi, limit: 4000)) ?? []
+        return Self.fillGarminSleep(imported + computedKept, garmin).sorted { $0.effectiveStartTs < $1.effectiveStartTs }
     }
 
     /// The persisted per-epoch MOTION series for each of `starts` (detected session start keys), keyed by
