@@ -2355,7 +2355,8 @@ private struct SleepPerformanceNightScene: View {
     @AppStorage(SceneBackgroundPrefs.enabledKey) private var showDayCycleBackground = true
 
     var body: some View {
-        if showDayCycleBackground { nightScene } else { StrandPalette.surfaceBase }
+        // Ember keeps Sleep on the plain canvas: the lake photo is the loudest thing in the app.
+        if showDayCycleBackground && StrandPalette.chartStyle != .ember { nightScene } else { StrandPalette.surfaceBase }
     }
 
     /// The bundled night scene (moonlit lake + procedural fallback). Shown only when the day-cycle

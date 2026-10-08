@@ -71,7 +71,11 @@ public struct BevelGauge: View {
     private var startAngle: Angle { .degrees(150) }
     private var endAngle: Angle { .degrees(150 + arcSpanDegrees) }
 
-    private var gradient: Gradient { Gradient(stops: stops) }
+    private var gradient: Gradient {
+        // Ember: one flat colour along the arc, the brightest stop of the ramp.
+        if StrandPalette.chartStyle == .ember, let last = stops.last { return Gradient(colors: [last.color, last.color]) }
+        return Gradient(stops: stops)
+    }
 
     public var body: some View {
         ZStack {
@@ -114,7 +118,7 @@ public struct BevelGauge: View {
                 )
 
             // Clean end-cap dot at the arc tip.
-            if animatedFraction > 0.001 { endCap }
+            if animatedFraction > 0.001 && StrandPalette.chartStyle != .ember { endCap }
         }
     }
 

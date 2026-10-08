@@ -304,7 +304,8 @@ public struct TrendChip: View {
         }
         .foregroundStyle(color)
         .padding(.horizontal, 6).padding(.vertical, 2)
-        .background(color.opacity(0.14), in: Capsule(style: .continuous))
+        // Ember: the arrow and the number carry the direction, no tinted pill behind them.
+        .background(color.opacity(StrandPalette.chartStyle == .ember ? 0 : 0.14), in: Capsule(style: .continuous))
         .accessibilityHidden(true)
     }
 }
@@ -548,11 +549,9 @@ public struct SourceBadge: View {
         // `.frame(height:)` centres its content by default, so the label sits mid-capsule for free. Noted
         // because the Android twin pinned the same 18 with `heightIn` applied to the label itself, which
         // top-aligns — same number, different render. That one is matched to this, not the reverse.
-        Text(text).textCase(.uppercase).font(.system(size: 10, weight: .semibold, design: .rounded)).tracking(0.5)
-            .padding(.horizontal, 9).frame(height: NoopMetrics.sourceBadgeHeight)
-            .background(tint.opacity(0.16), in: Capsule(style: .continuous))
-            .foregroundStyle(tint)
-            .overlay(Capsule(style: .continuous).strokeBorder(tint.opacity(0.34), lineWidth: 1))
+        Text(text).textCase(.lowercase).font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 2).frame(height: NoopMetrics.sourceBadgeHeight)
+            .foregroundStyle(StrandPalette.textTertiary)
     }
 }
 
