@@ -545,6 +545,15 @@ final class HealthKitBridge: ObservableObject {
         // wins the message, but recording it here is what keeps steps covered if that early return is
         // ever removed: the general guard then catches it instead of it silently losing its protection.
         note(stepsReadOk, "stepCount")
+        // Garmin's step count wins wherever it has one: Health merges every source by its own priority,
+        // and the watch counts steps better than the phone in a pocket. Days Garmin missed keep the merge.
+        let garminStepSources = await Self.garminSources(for: .stepCount, in: self.store)
+        if !garminStepSources.isEmpty {
+            _ = await collect(.stepCount, unit: .count(), start: start, end: end, op: .cumulativeSum,
+                              sources: garminStepSources) { day, v in
+                var a = agg(day); a.steps = v; byDay[day] = a
+            }
+        }
         // A failed query is not an empty step history. Stop before upserting AppleDaily: its conflict
         // update replaces the stored count with nil when another Health metric populated that day.
         // The next foreground or observer sync can retry without losing the last good reading.
@@ -1424,6 +1433,18 @@ final class HealthKitBridge: ObservableObject {
         var waterMl: Double?
     }
 
+    /// Every Health source that is Garmin Connect (bundle ids start with com.garmin) and has written this
+    /// type. Empty when Garmin Connect is not installed or never shared the type.
+    static func garminSources(for id: HKQuantityTypeIdentifier, in store: HKHealthStore) async -> Set<HKSource> {
+        guard let type = HKQuantityType.quantityType(forIdentifier: id) else { return [] }
+        return await withCheckedContinuation { cont in
+            let q = HKSourceQuery(sampleType: type, samplePredicate: nil) { _, sources, _ in
+                cont.resume(returning: (sources ?? []).filter { GarminSource.isGarmin(bundleId: $0.bundleIdentifier) })
+            }
+            store.execute(q)
+        }
+    }
+
     /// Excludes NOOP's own write-back samples from reads, so the two-way sync never reads its own
     /// output back in as "apple-health" data — which would make the strap and "Apple Health" plot the
     /// same line for a strap-only user, and bias the apple-health average for someone who also has a
@@ -1504,14 +1525,17 @@ final class HealthKitBridge: ObservableObject {
     }
 
     private func collect(_ id: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date,
-                         op: HKStatisticsOptions, sink: @escaping (String, Double) -> Void) async -> HealthRead {
+                         op: HKStatisticsOptions, sources: Set<HKSource>? = nil,
+                         sink: @escaping (String, Double) -> Void) async -> HealthRead {
         guard let type = HKQuantityType.quantityType(forIdentifier: id) else { return .unavailable }
         let cal = Calendar.current
         let anchor = cal.startOfDay(for: start)
-        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+        var parts = [
             HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
             Self.notNoopAuthored,
-        ])
+        ]
+        if let sources { parts.append(HKQuery.predicateForObjects(from: sources)) }
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: parts)
         return await withCheckedContinuation { (cont: CheckedContinuation<HealthRead, Never>) in
             let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate,
                                                 options: op, anchorDate: anchor,
