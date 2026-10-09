@@ -610,6 +610,7 @@ enum DemoScreens {
         // + self-service pairing guidance, screenshot-able WITHOUT reproducing the bond refusal on real
         // hardware.
         case "bondrefused": return AnyView(BondRefusedDemoScreen())
+        case "coach": return AnyView(CoachDemoHost())
         default:         return nil
         }
     }
@@ -638,3 +639,33 @@ private struct OuraOnboardingDemoHost: View {
 
 }
 #endif
+
+#if DEBUG
+/// DEBUG-only host so `--demo-screen coach` shows the Coach mid conversation. Pair it with
+/// `-ai.provider custom -ai.customConnected YES` so the chat renders instead of the setup card.
+private struct CoachDemoHost: View {
+    @EnvironmentObject var coach: AICoachEngine
+    var body: some View {
+        CoachView()
+            .onAppear {
+                guard coach.messages.isEmpty, !CommandLine.arguments.contains("--demo-coach-empty") else { return }
+                coach.messages = [
+                    ChatMessage(role: .user, text: "should i swim hard today?"),
+                    ChatMessage(role: .assistant, text: """
+                    **maintain.** recovery 52, hrv 61, down 14 from your 30 day 75.
+
+                    sleep was the drag: 6:10 asleep, deep 48 min.
+                    yesterday's swim put strain at 14.2, so the load is still in your legs.
+
+                    today:
+                    - swim easy, 2,000 m, all zone 2
+                    - no sprint sets
+                    - in bed by 23:00, that is the fastest way back to green
+                    """),
+                    ChatMessage(role: .user, text: "and tomorrow?"),
+                ]
+            }
+    }
+}
+#endif
+

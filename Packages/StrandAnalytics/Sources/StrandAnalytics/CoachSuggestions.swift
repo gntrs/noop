@@ -60,11 +60,11 @@ public enum CoachSuggestions {
         // 1. Charge band → one readiness prescription chip.
         if let c = charge {
             if c < chargeRedCutoff {
-                chips.append("Active recovery only today — what should I do?")
+                chips.append("Red day. What do I do?")
             } else if c < chargeGreenCutoff {
-                chips.append("Quality over volume today — plan my session")
+                chips.append("Plan today's session")
             } else {
-                chips.append("Green light — how hard can I push today?")
+                chips.append("How hard can I push today?")
             }
         }
 
@@ -78,7 +78,7 @@ public enum CoachSuggestions {
 
         // 3. Poor sleep (< 6h).
         if let s = sleep, s < poorSleepMin {
-            chips.append("I slept poorly — how do I recover today?")
+            chips.append("Bad sleep. How do I get it back?")
         }
 
         // 4. Already a high-strain day.

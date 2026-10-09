@@ -39,7 +39,7 @@ final class CoachSuggestionsTests: XCTestCase {
     func testLowChargeActiveRecoveryChip() {
         let today = metric(day: 10, recovery: 20)
         let chips = CoachSuggestions.suggestions(for: today, recent: [])
-        XCTAssertEqual(chips.first, "Active recovery only today — what should I do?")
+        XCTAssertEqual(chips.first, "Red day. What do I do?")
         XCTAssertEqual(chips.last, "Analyse my sleep")
         XCTAssertTrue(chips.count >= 2 && chips.count <= 4)
     }
@@ -47,25 +47,25 @@ final class CoachSuggestionsTests: XCTestCase {
     func testMidChargeQualityOverVolumeChip() {
         let today = metric(day: 10, recovery: 50)
         let chips = CoachSuggestions.suggestions(for: today, recent: [])
-        XCTAssertEqual(chips.first, "Quality over volume today — plan my session")
+        XCTAssertEqual(chips.first, "Plan today's session")
     }
 
     func testHighChargeGreenLightChip() {
         let today = metric(day: 10, recovery: 90)
         let chips = CoachSuggestions.suggestions(for: today, recent: [])
-        XCTAssertEqual(chips.first, "Green light — how hard can I push today?")
+        XCTAssertEqual(chips.first, "How hard can I push today?")
     }
 
     func testChargeBoundary34IsMidBand() {
         let today = metric(day: 10, recovery: 34)
         XCTAssertEqual(CoachSuggestions.suggestions(for: today, recent: []).first,
-                       "Quality over volume today — plan my session")
+                       "Plan today's session")
     }
 
     func testChargeBoundary67IsGreenBand() {
         let today = metric(day: 10, recovery: 67)
         XCTAssertEqual(CoachSuggestions.suggestions(for: today, recent: []).first,
-                       "Green light — how hard can I push today?")
+                       "How hard can I push today?")
     }
 
     // MARK: - HRV trending down
@@ -100,13 +100,13 @@ final class CoachSuggestionsTests: XCTestCase {
     func testPoorSleepAddsRecoverChip() {
         let today = metric(day: 10, recovery: 70, sleepMin: 300) // 5h
         let chips = CoachSuggestions.suggestions(for: today, recent: [])
-        XCTAssertTrue(chips.contains("I slept poorly — how do I recover today?"))
+        XCTAssertTrue(chips.contains("Bad sleep. How do I get it back?"))
     }
 
     func testSixHoursIsNotPoor() {
         let today = metric(day: 10, recovery: 70, sleepMin: 360) // exactly 6h
         let chips = CoachSuggestions.suggestions(for: today, recent: [])
-        XCTAssertFalse(chips.contains("I slept poorly — how do I recover today?"))
+        XCTAssertFalse(chips.contains("Bad sleep. How do I get it back?"))
     }
 
     // MARK: - High strain
@@ -145,14 +145,14 @@ final class CoachSuggestionsTests: XCTestCase {
         XCTAssertEqual(chips.count, 4)
         // The stable generic is appended last; with the cap at 4, it is the 4th element (the 5th
         // candidate, the strain chip, is dropped). Charge is first.
-        XCTAssertEqual(chips.first, "Active recovery only today — what should I do?")
+        XCTAssertEqual(chips.first, "Red day. What do I do?")
         XCTAssertEqual(chips.last, "Analyse my sleep")
     }
 
     func testChargeOnlyYieldsChargeAndGeneric() {
         let today = metric(day: 10, recovery: 90)
         let chips = CoachSuggestions.suggestions(for: today, recent: [])
-        XCTAssertEqual(chips, ["Green light — how hard can I push today?", "Analyse my sleep"])
+        XCTAssertEqual(chips, ["How hard can I push today?", "Analyse my sleep"])
     }
 
     // MARK: - Byte-identity of the fallback list

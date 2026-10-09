@@ -58,36 +58,15 @@ struct CoachView: View {
     private var suggestions: [String] { coach.suggestions }
 
     var body: some View {
-        ScreenScaffold(title: "Coach",
-                       subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.",
-                       // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                       // tabs carry, so Coach sits in one atmosphere. Static + non-interactive; the frosted
-                       // message/setup cards below sit on the opaque canvas and stay legible.
-                       topBackground: liquidScaffoldSky()) {
+        Group {
             if coach.isConfigured {
-                connectedHeader
-                transcript
-                if let error = coach.errorText, !error.isEmpty {
-                    errorBanner(error)
-                }
-                if coach.keyRejected || showKeyEditor { keyRepairPanel }
-                // K7: show follow-up chips after each assistant reply (when the transcript is
-                // non-empty and the last message is from the assistant and not mid-send);
-                // otherwise show the initial contextual chips.
-                if showFollowUpChips {
-                    followUpChips
-                } else {
-                    suggestionChips
-                }
-                composer
-                // K12: show a rough token estimate when the draft is non-empty.
-                if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                   let tokens = coach.estimatedTokens(forDraft: draft) {
-                    tokenEstimateBar(tokens)
-                }
-                privacyFootnote
+                chatScreen
             } else {
-                setupCard
+                ScreenScaffold(title: "Coach",
+                               subtitle: "Ask about your recovery, strain, sleep and workouts, grounded in your own numbers.",
+                               topBackground: liquidScaffoldSky()) {
+                    setupCard
+                }
             }
         }
         // macOS only. On iOS these actions live in `connectionMenu` instead, because this bar is hidden for
@@ -393,6 +372,86 @@ struct CoachView: View {
 
     // MARK: - Connected state
 
+    /// The live chat: a slim header, the conversation full width, and the composer pinned above the tab
+    /// bar so it never scrolls away. Errors and the key editor sit in the conversation where they happen.
+    private var chatScreen: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 22) {
+                    if coach.messages.isEmpty { emptyTranscript }
+                    ForEach(coach.messages) { message in
+                        bubble(message).id(message.id)
+                    }
+                    if coach.sending { typingIndicator.id("typing") }
+                    if let error = coach.errorText, !error.isEmpty { errorBanner(error) }
+                    if coach.keyRejected || showKeyEditor { keyRepairPanel }
+                    Color.clear.frame(height: 1).id("end")
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            #if os(iOS)
+            .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            #endif
+            .safeAreaInset(edge: .top, spacing: 0) { chatHeader }
+            .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
+            .onAppear { proxy.scrollTo("end", anchor: .bottom) }
+            .onChangeCompat(of: coach.messages.count) { _ in scrollToEnd(proxy) }
+            .onChangeCompat(of: coach.sending) { _ in scrollToEnd(proxy) }
+        }
+        .background(StrandPalette.surfaceBase.ignoresSafeArea())
+    }
+
+    private var chatHeader: some View {
+        HStack(spacing: 4) {
+            Text("Coach")
+                .font(.system(size: 22, weight: .semibold))
+                .tracking(-0.4)
+                .foregroundStyle(StrandPalette.textPrimary)
+            Spacer()
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Coach settings"))
+            #if os(iOS)
+            connectionMenu
+            #endif
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 2)
+        .background(StrandPalette.surfaceBase)
+        .overlay(alignment: .bottom) { Rectangle().fill(StrandPalette.hairline).frame(height: 0.5) }
+    }
+
+    /// Chips only when there is something to pick: before the first question, and after a reply.
+    private var bottomBar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !coach.sending {
+                if coach.messages.isEmpty { suggestionChips } else if showFollowUpChips { followUpChips }
+            }
+            composer
+            if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let tokens = coach.estimatedTokens(forDraft: draft), tokens > 8000 {
+                tokenEstimateBar(tokens)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(StrandPalette.surfaceBase)
+    }
+
     private var connectedHeader: some View {
         HStack(spacing: 10) {
             StatePill("\(coach.provider.displayName) · \(coach.model)", tone: .accent, showsDot: true)
@@ -467,9 +526,11 @@ struct CoachView: View {
             // size is not decoration here: the report this came from was that the option could not be
             // FOUND, so a control that matches the one the wearer has already learned, at a size worth
             // aiming at, is doing part of the work.
-            Image(systemName: "ellipsis.circle")
-                .font(StrandFont.headline)
+            Image(systemName: "ellipsis")
+                .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("Connection")
     }
@@ -516,16 +577,19 @@ struct CoachView: View {
     }
 
     private var emptyTranscript: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Ask your first question")
-                .font(StrandFont.headline)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("What do you want to know?")
+                .font(.system(size: 22, weight: .semibold))
+                .tracking(-0.4)
                 .foregroundStyle(StrandPalette.textPrimary)
-            Text("Coach reads a summary of your last two weeks plus 30-day averages and recent workouts, then answers in plain language. Try a suggestion below.")
+            Text("Coach reads your last two weeks, 30 day averages and recent workouts, then gives you the call for today.")
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+            privacyFootnote
+                .padding(.top, 6)
         }
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+        .padding(.top, 40)
     }
 
     @ViewBuilder
@@ -536,12 +600,12 @@ struct CoachView: View {
                 Spacer(minLength: 48)
                 Text(message.text)
                     .font(StrandFont.body)
-                    .foregroundStyle(StrandPalette.surfaceBase)
+                    .foregroundStyle(StrandPalette.textPrimary)
                     .textSelection(.enabled)
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(StrandPalette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .frame(maxWidth: 520, alignment: .trailing)
             }
             .accessibilityElement(children: .combine)
@@ -556,10 +620,7 @@ struct CoachView: View {
                     .markdownTheme(.strand)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
-                    .frame(maxWidth: 560, alignment: .leading)
+                    .frame(maxWidth: 640, alignment: .leading)
                     // K8: Copy / Share / Save context menu on assistant replies.
                     .contextMenu {
                         Button {
@@ -581,7 +642,7 @@ struct CoachView: View {
                             Label("Save to Journal", systemImage: "square.and.pencil")
                         }
                     }
-                Spacer(minLength: 48)
+                Spacer(minLength: 0)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Coach said: \(message.text)")
@@ -591,15 +652,11 @@ struct CoachView: View {
     private var typingIndicator: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small).tint(StrandPalette.accent)
-            Text("Coach is thinking…")
+            Text("thinking")
                 .font(StrandFont.subhead)
-                .foregroundStyle(StrandPalette.textSecondary)
+                .foregroundStyle(StrandPalette.textTertiary)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
-        .frame(maxWidth: 320, alignment: .leading)
         .accessibilityLabel("Coach is thinking")
     }
 
@@ -682,10 +739,10 @@ struct CoachView: View {
                         send(prompt)
                     } label: {
                         Text(prompt)
-                            .font(StrandFont.captionNumber)
+                            .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
                             .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
                             .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
                     }
@@ -718,10 +775,10 @@ struct CoachView: View {
                         send(prompt)
                     } label: {
                         Text(prompt)
-                            .font(StrandFont.captionNumber)
+                            .font(StrandFont.subhead)
                             .foregroundStyle(StrandPalette.textSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
                             .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
                             .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
                     }
@@ -756,53 +813,49 @@ struct CoachView: View {
     /// The input bar, a frosted overlay surface holding the field + Send, so the composer reads as a
     /// distinct docked surface above the canvas rather than two floating controls.
     private var composer: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            TextField("Ask Coach about your data…", text: $draft, axis: .vertical)
+        let canSend = !coach.sending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return HStack(alignment: .bottom, spacing: 6) {
+            TextField("Ask your coach", text: $draft, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(StrandFont.body)
                 .foregroundStyle(StrandPalette.textPrimary)
-                .lineLimit(1...5)
+                .lineLimit(1...6)
                 .focused($composerFocused)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
+                .padding(.leading, 16)
+                .padding(.vertical, 12)
                 .onSubmit { send(draft) }
                 .accessibilityLabel("Question")
 
             // K4: on-device voice input (iOS only). macOS compiles this section out entirely.
             #if os(iOS)
-            micButton
+            if (draft.isEmpty && !coach.sending) || voiceInput.isRecording { micButton }
             #endif
 
-            // Docked icon-only send affordance: a crisp accent-filled square sized to the
-            // composer row (not the full 48pt control height), so it routes through the same
-            // token fill/label colours as the button system without overpowering the field.
             Button {
                 send(draft)
             } label: {
                 Group {
                     if coach.sending {
-                        ProgressView().controlSize(.small).tint(StrandPalette.goldDeepText)
+                        ProgressView().controlSize(.small).tint(StrandPalette.textSecondary)
                     } else {
                         Image(systemName: "arrow.up")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 15, weight: .bold))
                     }
                 }
-                .frame(width: 44, height: 38)
-                .foregroundStyle(StrandPalette.goldDeepText)
-                .background(StrandPalette.accent,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(width: 34, height: 34)
+                .foregroundStyle(canSend ? StrandPalette.surfaceBase : StrandPalette.textTertiary)
+                .background(canSend ? StrandPalette.accent : StrandPalette.surfaceRaised, in: Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(coach.sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(!canSend)
             .accessibilityLabel("Send")
+            .padding(.trailing, 2)
         }
-        .padding(8)
-        .background(NoopPanelSurface(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
     }
 
     // MARK: - K4: Voice input (iOS only)
@@ -821,28 +874,20 @@ struct CoachView: View {
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(StrandPalette.statusCritical)
                 } else {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(canUseVoice ? StrandPalette.textSecondary : StrandPalette.textTertiary)
+                    Image(systemName: "mic")
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundStyle(canUseVoice || voiceInput.authorization == .notDetermined
+                                         ? StrandPalette.textSecondary : StrandPalette.textTertiary)
                 }
             }
-            .frame(width: 36, height: 38)
-            .background(StrandPalette.surfaceInset,
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+            .frame(width: 40, height: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!micButtonEnabled)
         .help(voiceInput.statusMessage ?? "Ask out loud")
         .accessibilityLabel(voiceInput.isRecording ? "Stop voice input" : "Voice input")
         .accessibilityHint(voiceInput.statusMessage ?? "Transcribes your question on-device")
-        .task {
-            // Pre-check on appear so the button reflects the right state without a tap.
-            if voiceInput.authorization == .notDetermined {
-                voiceInput.requestAuthorization { _ in }
-            }
-        }
     }
 
     /// Whether the mic button is tappable: not while sending, and only if voice is either
