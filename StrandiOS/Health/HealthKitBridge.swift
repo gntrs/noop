@@ -101,6 +101,9 @@ final class HealthKitBridge: ObservableObject {
         // empty and the imported workout shows distance but no map — same as today, so the addition
         // is strictly additive.
         s.insert(HKSeriesType.workoutRoute())
+        // Swim strokes, read on demand by the swim card so a watch's stroke count can be checked
+        // against the lengths the swimmer says they swam.
+        if let strokes = HKObjectType.quantityType(forIdentifier: .swimmingStrokeCount) { s.insert(strokes) }
         return s
     }
 
@@ -1449,6 +1452,26 @@ final class HealthKitBridge: ObservableObject {
     /// output back in as "apple-health" data — which would make the strap and "Apple Health" plot the
     /// same line for a strap-only user, and bias the apple-health average for someone who also has a
     /// watch. `HKSource.default()` is this app's own source. (Reimplemented from @vulnix0x4's PR #375.)
+    /// Swim strokes recorded in Health over [start, end], NOOP's own samples left out. nil when none
+    /// were recorded, the read was not granted, or the query failed.
+    nonisolated static func swimStrokes(from start: Date, to end: Date) async -> Double? {
+        guard HKHealthStore.isHealthDataAvailable(),
+              let type = HKQuantityType.quantityType(forIdentifier: .swimmingStrokeCount) else { return nil }
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: start, end: end, options: []),
+            NSCompoundPredicate(notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: [HKSource.default()])),
+        ])
+        let store = HKHealthStore()
+        return await withCheckedContinuation { (cont: CheckedContinuation<Double?, Never>) in
+            let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate,
+                                          options: .cumulativeSum) { _, stats, _ in
+                let n = stats?.sumQuantity()?.doubleValue(for: .count())
+                cont.resume(returning: n.flatMap { $0 > 0 ? $0 : nil })
+            }
+            store.execute(query)
+        }
+    }
+
     private static var notNoopAuthored: NSPredicate {
         NSCompoundPredicate(notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: [HKSource.default()]))
     }

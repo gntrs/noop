@@ -70,6 +70,14 @@ struct WorkoutDetailView: View {
     private struct StepReadout { let count: Int; let fromStrap: Bool }
     @State private var steps: StepReadout?
 
+    /// Pool swims: the swimmer's own correction, if they made one, and the strokes Health holds for the
+    /// session window. The watch's length count drives distance, pace and strokes per length, and it can
+    /// be wrong, so the swim card works from the correction whenever there is one.
+    @State private var swimFix: SwimMath.Fix?
+    @State private var swimStrokes: Double?
+    @State private var showSwimFix = false
+    private var isSwim: Bool { row.sport.lowercased().contains("swim") }
+
     var body: some View {
         ScreenScaffold(title: "\(WorkoutSource.displaySport(row.sport))",
                        subtitle: "\(dateLabel(row.startTs))",
@@ -85,6 +93,7 @@ struct WorkoutDetailView: View {
                        topBackground: liquidScaffoldSky()) {
             headerCard
             statStrip
+            if isSwim { swimCard }
             routeCard
             hrCurveCard
             zonesCard
@@ -100,6 +109,13 @@ struct WorkoutDetailView: View {
             }
         }
         .task { await load() }
+        .sheet(isPresented: $showSwimFix) {
+            SwimFixSheet(watchDistanceM: row.distanceM, fix: swimFix) { fix in
+                SwimFixStore.save(fix, startTs: row.startTs, sport: row.sport)
+                swimFix = SwimFixStore.load(startTs: row.startTs, sport: row.sport)
+            }
+            .presentationDetents([.medium])
+        }
     }
 
     // MARK: - Load
@@ -157,7 +173,19 @@ struct WorkoutDetailView: View {
             }
         }
 
+        var strokes: Double? = nil
+        #if os(iOS)
+        if isSwim {
+            strokes = await HealthKitBridge.swimStrokes(
+                from: Date(timeIntervalSince1970: TimeInterval(row.startTs)),
+                to: Date(timeIntervalSince1970: TimeInterval(row.endTs)))
+        }
+        #endif
+        let fix = isSwim ? SwimFixStore.load(startTs: row.startTs, sport: row.sport) : nil
+
         await MainActor.run {
+            self.swimStrokes = strokes
+            self.swimFix = fix
             self.route = routePoints
             self.hrPoints = points
             self.zoneMinutes = minutes
@@ -259,7 +287,7 @@ struct WorkoutDetailView: View {
                      value: row.energyKcal.map { grouped($0) } ?? "–",
                      caption: row.energyKcal != nil ? "kcal" : nil,
                      accent: row.energyKcal != nil ? StrandPalette.metricAmber : StrandPalette.textTertiary)
-            if row.distanceM != nil {
+            if row.distanceM != nil, !isSwim {
                 StatTile(label: "Distance",
                          value: distanceLabel(row.distanceM),
                          caption: String(localized: "covered"),
@@ -275,6 +303,67 @@ struct WorkoutDetailView: View {
                          accent: steps != nil ? StrandPalette.metricCyan : StrandPalette.textTertiary)
             }
         }
+    }
+
+    // MARK: - Swim
+
+    /// Distance, pace per 100 m, lengths and strokes for a pool swim, from the swimmer's correction when
+    /// there is one, else from the watch with a warning when its count cannot be right.
+    @ViewBuilder private var swimCard: some View {
+        let durationS = row.durationS ?? Double(row.endTs - row.startTs)
+        let fixedM = swimFix.flatMap { SwimMath.distance($0) }
+        let distanceM = fixedM ?? row.distanceM
+        let poolM = swimFix?.poolM
+        let lengths = poolM.flatMap { SwimMath.lengths(distanceM: distanceM, poolM: $0) }
+        let pace = SwimMath.secPer100(distanceM: distanceM, durationS: durationS)
+        let spm = SwimMath.strokesPerMinute(strokes: swimStrokes, durationS: durationS)
+        let spl = SwimMath.strokesPerLength(strokes: swimStrokes, lengths: lengths)
+        let off = fixedM == nil && SwimMath.looksOff(distanceM: row.distanceM, durationS: durationS)
+        NoopCard(tint: StrandPalette.effortColor) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Swim").font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                    Spacer()
+                    Text(fixedM != nil ? "your numbers" : "from the watch")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+                .padding(.bottom, 6)
+                swimRow("Distance", distanceM.map { "\(Int($0.rounded())) m" })
+                swimRow("Pace", pace.map { "\(SwimMath.clock($0)) /100 m" })
+                if let poolM, let lengths {
+                    swimRow("Lengths", "\(lengths) × \(Int(poolM)) m")
+                }
+                swimRow("Strokes per minute", spm.map { String(format: "%.0f", $0) })
+                if let spl { swimRow("Strokes per length", String(format: "%.1f", spl)) }
+                if off {
+                    Text("Pace this fast with rests means the watch counted lengths you did not swim. Fix it below.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.accent)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
+                }
+                Button {
+                    showSwimFix = true
+                } label: {
+                    Text(fixedM != nil ? "Edit your numbers" : "Fix this swim")
+                        .font(StrandFont.subhead.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .tint(StrandPalette.accent)
+                .padding(.top, 12)
+            }
+        }
+    }
+
+    private func swimRow(_ label: String, _ value: String?) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+            Spacer()
+            Text(value ?? "–").font(StrandFont.number(17)).foregroundStyle(StrandPalette.textPrimary)
+        }
+        .frame(minHeight: 40)
+        .overlay(alignment: .top) { Rectangle().fill(StrandPalette.hairline).frame(height: 0.5) }
     }
 
     // MARK: - GPS route (#524)
